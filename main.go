@@ -1,56 +1,24 @@
 // Package main is the entry point for the chat application backend service.
-// It initializes database connections, registers HTTP routing via Gin,
-// and starts the server configured for local and network access (IPv4).
+// It initializes application configurations, establishes the PostgreSQL connection pool,
+// sets up Gin routing, and starts the HTTP server.
 package main
 
 import (
-	"database/sql"
 	"fmt"
 	"log"
 	"net/http"
-	"os"
+
+	"backend/internal/config"
+	"backend/internal/database"
 
 	"github.com/gin-gonic/gin"
-	_ "github.com/lib/pq"
 )
-
-/*
-	Server configuration defaults.
-	These defaults are used when corresponding environment variables are not provided.
-*/
-const (
-	defaultPort   = "8080"
-	defaultDBURL  = "postgres://postgres:postgres@localhost:5432/chat_app_db?sslmode=disable"
-	defaultHostIP = "10.192.168.159"
-)
-
-// initDB initializes and verifies the connection to the PostgreSQL database.
-// It retrieves the connection string from DATABASE_URL or falls back to defaultDBURL.
-func initDB() (*sql.DB, error) {
-	connStr := os.Getenv("DATABASE_URL")
-	if connStr == "" {
-		connStr = defaultDBURL
-	}
-
-	// Open SQL connection pool with postgres driver
-	db, err := sql.Open("postgres", connStr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open database: %w", err)
-	}
-
-	// Ping database to verify connection readiness
-	if err := db.Ping(); err != nil {
-		return nil, fmt.Errorf("failed to ping database: %w", err)
-	}
-
-	return db, nil
-}
 
 // setupRouter configures the Gin engine and registers API routes.
 func setupRouter() *gin.Engine {
 	r := gin.Default()
 
-	// Health check endpoint
+	// Base health check endpoint
 	r.GET("/", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"status":  "ok",
@@ -61,34 +29,52 @@ func setupRouter() *gin.Engine {
 	return r
 }
 
-// main starts the chat application backend server.
+// main initializes dependencies, connects to the database, and runs the server.
 func main() {
-	// Initialize database connection
-	db, err := initDB()
+	/*
+		Step 1: Load configurations
+		Loads environment variables from .env file and sets fallback defaults.
+	*/
+	cfg, err := config.LoadConfig()
 	if err != nil {
-		// Log warning if database is not reachable yet, without crashing server during development
-		log.Printf("Warning: Database connection failed: %v", err)
-	} else {
-		defer db.Close()
-		fmt.Println("Connected to PostgreSQL successfully!")
+		log.Fatalf("Failed to load application configuration: %v", err)
 	}
 
-	// Determine port from environment or default
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = defaultPort
+	/*
+		Step 2: Initialize Database Connection Pool
+		Connects to PostgreSQL using pgxpool and ensures clean shutdown with defer.
+	*/
+	pool, err := database.ConnectDB(cfg)
+	if err != nil {
+		log.Fatalf("Database connection initialization failed: %v", err)
+	}
+	// Ensure the connection pool is cleanly closed when the application terminates
+	defer pool.Close()
+
+	/*
+		Step 3: Execute Database Migrations
+		Runs table migrations in the required serial sequence:
+		users -> friendships -> blocks -> reports -> messages -> call_logs.
+	*/
+	if err := database.RunMigrations(pool); err != nil {
+		log.Fatalf("Database migration execution failed: %v", err)
 	}
 
-	// Set up Gin router
+	// Set Gin mode according to configuration
+	if cfg.GinMode != "" {
+		gin.SetMode(cfg.GinMode)
+	}
+
+	// Step 4: Configure router and endpoints
 	router := setupRouter()
 
-	// Bind to 0.0.0.0 to allow access from local machine and external Wi-Fi devices
-	addr := "0.0.0.0:" + port
+	// Step 5: Start the HTTP server on configured host and port
+	addr := "0.0.0.0:" + cfg.ServerPort
 	fmt.Printf("Server listening on: %s\n", addr)
-	fmt.Printf("Local Wi-Fi hosting URL for mobile app: http://%s:%s\n", defaultHostIP, port)
+	fmt.Printf("Local Wi-Fi hosting URL for mobile app: http://%s:%s\n", cfg.HostIP, cfg.ServerPort)
 
-	// Start HTTP server
+	// Run the server
 	if err := router.Run(addr); err != nil {
-		log.Fatalf("Server error: %v", err)
+		log.Fatalf("Server failed to run: %v", err)
 	}
 }
