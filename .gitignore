@@ -1,0 +1,20 @@
+# Environment variables (contains sensitive secrets, never commit to git)
+.env
+*.env
+
+# Executables and build output
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+tmp/
+backend
+
+# Log files
+*.log
+build-errors.log
+
+# User uploaded media content (prevent leaking private user uploads)
+uploads/*
+!uploads/.gitkeep
