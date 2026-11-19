@@ -99,9 +99,28 @@ CREATE TABLE IF NOT EXISTS call_logs (
     call_type TEXT NOT NULL,
     status TEXT NOT NULL,
     duration_seconds INTEGER NOT NULL DEFAULT 0,
+    started_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     -- Validate call types
     CONSTRAINT chk_call_logs_type CHECK (call_type IN ('audio', 'video')),
     -- Validate call status
     CONSTRAINT chk_call_logs_status CHECK (status IN ('missed', 'completed', 'rejected'))
 );
+
+/*
+    Table 7: notifications
+    Stores offline/push and in-app alert notifications for messages and live location events.
+*/
+CREATE TABLE IF NOT EXISTS notifications (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    sender_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    type TEXT NOT NULL,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    is_read BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    -- Validate notification types
+    CONSTRAINT chk_notifications_type CHECK (type IN ('message', 'live_location', 'call'))
+);
+

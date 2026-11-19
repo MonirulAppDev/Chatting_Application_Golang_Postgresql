@@ -4,8 +4,8 @@ package models
 import "time"
 
 /*
-	User represents a user account entity in the database.
-	The PasswordHash field is excluded from JSON serialization (json:"-") for security.
+User represents a user account entity in the database.
+The PasswordHash field is excluded from JSON serialization (json:"-") for security.
 */
 type User struct {
 	// Unique primary key identifier
@@ -25,7 +25,7 @@ type User struct {
 }
 
 /*
-	RegisterRequest captures the incoming JSON payload for user registration.
+RegisterRequest captures the incoming JSON payload for user registration.
 */
 type RegisterRequest struct {
 	// Desired username for the new account
@@ -37,7 +37,7 @@ type RegisterRequest struct {
 }
 
 /*
-	LoginRequest captures the incoming JSON payload for user authentication.
+LoginRequest captures the incoming JSON payload for user authentication.
 */
 type LoginRequest struct {
 	// Account email address

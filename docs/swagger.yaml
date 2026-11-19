@@ -1,0 +1,721 @@
+basePath: /
+definitions:
+  models.BlockUserRequest:
+    properties:
+      blocked_id:
+        description: User ID to be blocked
+        type: integer
+    required:
+    - blocked_id
+    type: object
+  models.LoginRequest:
+    properties:
+      email:
+        description: Account email address
+        type: string
+      password:
+        description: Account password for verification
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  models.MarkNotificationsReadRequest:
+    properties:
+      notification_id:
+        description: Optional single notification ID to mark as read
+        type: integer
+      notification_ids:
+        description: Optional list of specific notification IDs to mark as read
+        items:
+          type: integer
+        type: array
+    type: object
+  models.RegisterRequest:
+    properties:
+      email:
+        description: User email address
+        type: string
+      password:
+        description: Raw account password
+        type: string
+      username:
+        description: Desired username for the new account
+        type: string
+    required:
+    - email
+    - password
+    - username
+    type: object
+  models.ReportUserRequest:
+    properties:
+      message_id:
+        description: Optional message ID being reported (nullable)
+        type: integer
+      reason:
+        description: Detailed reason for reporting
+        type: string
+      reported_user_id:
+        description: User ID being reported
+        type: integer
+    required:
+    - reason
+    - reported_user_id
+    type: object
+  models.RespondFriendRequest:
+    properties:
+      action:
+        description: 'Action to perform: ''accepted'' or ''rejected'''
+        type: string
+      request_id:
+        description: ID of the friendship record to update
+        type: integer
+    required:
+    - action
+    - request_id
+    type: object
+  models.SendFriendRequest:
+    properties:
+      receiver_id:
+        description: Target user ID who should receive the friend request
+        type: integer
+    required:
+    - receiver_id
+    type: object
+  models.UnblockUserRequest:
+    properties:
+      blocked_id:
+        description: User ID to be unblocked
+        type: integer
+    required:
+    - blocked_id
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@chatapp.com
+    name: API Support
+  description: RESTful API for Real-time Chat Application with WebSocket, Authentication,
+    and Social Features.
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: Chat Application Backend API
+  version: "1.0"
+paths:
+  /api/calls:
+    get:
+      description: Fetch audio and video call logs involving the authenticated user
+        (as caller or receiver), ordered chronologically descending by created_at.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of call log records
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get call history
+      tags:
+      - Calls
+  /api/friends:
+    get:
+      description: Fetch all users who have an accepted friendship with the authenticated
+        user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of friends
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List all friends
+      tags:
+      - Friends
+  /api/friends/request:
+    post:
+      consumes:
+      - application/json
+      description: Send a friend request to another user by their user ID
+      parameters:
+      - description: Receiver user ID
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.SendFriendRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Friend request sent successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid request or cannot send to self
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Cannot send request due to user block
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Target user not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Friend request already exists or users are already friends
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Send friend request
+      tags:
+      - Friends
+  /api/friends/respond:
+    post:
+      consumes:
+      - application/json
+      description: Accept or reject a pending friend request by request ID
+      parameters:
+      - description: Request ID and action (accepted or rejected)
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.RespondFriendRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Friend request response processed
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid action or request not in pending state
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: 'Forbidden: user is not the recipient of this request'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Friend request not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Respond to friend request
+      tags:
+      - Friends
+  /api/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate a user with email and password to receive a JWT Bearer
+        token
+      parameters:
+      - description: User credentials
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Login successful with token and user profile
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid request payload
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Invalid email or password
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Login user
+      tags:
+      - Auth
+  /api/messages:
+    get:
+      description: Fetch all historical messages exchanged between the authenticated
+        user and target other_user_id ordered chronologically ascending.
+      parameters:
+      - description: Other User ID to fetch chat history with
+        in: query
+        name: with
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of chat messages
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid or missing 'with' parameter
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get chat history with a user
+      tags:
+      - Messages
+  /api/notifications:
+    get:
+      description: Fetch all unread notifications for the authenticated user from
+        the notifications table ordered descending.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of unread notifications
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get unread notifications
+      tags:
+      - Notifications
+  /api/notifications/read:
+    post:
+      consumes:
+      - application/json
+      description: Update notifications status to is_read = true for the authenticated
+        user. If request body is empty or notification IDs omitted, marks all unread
+        notifications as read.
+      parameters:
+      - description: Optional notification IDs to mark as read
+        in: body
+        name: request
+        schema:
+          $ref: '#/definitions/models.MarkNotificationsReadRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Notifications marked as read
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Mark notifications as read
+      tags:
+      - Notifications
+  /api/register:
+    post:
+      consumes:
+      - application/json
+      description: Register a new account with username, email, and password
+      parameters:
+      - description: User registration details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: User registered successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid request payload
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Username or email already exists
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Register a new user
+      tags:
+      - Auth
+  /api/reports:
+    post:
+      consumes:
+      - application/json
+      description: Submit a safety and moderation report for a user or a specific
+        message
+      parameters:
+      - description: Report payload with target user, optional message ID, and reason
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.ReportUserRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Report submitted successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid payload, reason empty, or reporting self
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Reported user or message not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Report a user or message
+      tags:
+      - Moderation
+  /api/stickers:
+    get:
+      description: Scan ./static/stickers and return sticker assets with name, pack
+        name, and access URL.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of available stickers
+          schema:
+            additionalProperties: true
+            type: object
+      summary: List available stickers
+      tags:
+      - Media
+  /api/upload:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Upload image (to ./uploads/images/) or audio (to ./uploads/audio/)
+        up to 20MB. Returns the stored relative and full file URLs.
+      parameters:
+      - description: Media file to upload (image or audio)
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: File uploaded successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad request, file too large, or unsupported type
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Upload media file (Image or Audio)
+      tags:
+      - Media
+  /api/users/block:
+    delete:
+      consumes:
+      - application/json
+      description: Unblock a previously blocked user using their user ID via query
+        parameter or JSON body
+      parameters:
+      - description: Blocked user ID (query param)
+        in: query
+        name: blocked_id
+        type: integer
+      - description: Blocked user ID (JSON body)
+        in: body
+        name: request
+        schema:
+          $ref: '#/definitions/models.UnblockUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: User unblocked successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid or missing blocked_id
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Block record not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Unblock a user
+      tags:
+      - Moderation
+    post:
+      consumes:
+      - application/json
+      description: Block a user and permanently remove any active or pending friendship
+        between both accounts
+      parameters:
+      - description: Target user ID to block
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.BlockUserRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: User blocked successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid request or attempting to block self
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Target user not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: User is already blocked
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Block a user
+      tags:
+      - Moderation
+  /ws:
+    get:
+      description: Upgrade HTTP connection to WebSocket protocol. Provide JWT token
+        via query parameter (?token=...) or Authorization header.
+      parameters:
+      - description: JWT authentication token
+        in: query
+        name: token
+        type: string
+      responses:
+        "101":
+          description: Switching Protocols to WebSocket
+          schema:
+            type: string
+        "401":
+          description: 'Unauthorized: missing or invalid token'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Failed to upgrade connection
+          schema:
+            type: string
+      summary: Connect to real-time WebSocket
+      tags:
+      - WebSocket
+securityDefinitions:
+  BearerAuth:
+    description: Type "Bearer <token>" to authenticate.
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

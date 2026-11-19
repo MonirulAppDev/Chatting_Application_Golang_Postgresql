@@ -25,6 +25,7 @@ type migrationStep struct {
 // 4. reports
 // 5. messages
 // 6. call_logs
+// 7. notifications
 // It logs progress after each table creation and logs final results upon completion.
 func RunMigrations(pool *pgxpool.Pool) error {
 	// Create context with timeout for migration operations
@@ -119,9 +120,26 @@ func RunMigrations(pool *pgxpool.Pool) error {
 					call_type TEXT NOT NULL,
 					status TEXT NOT NULL,
 					duration_seconds INTEGER NOT NULL DEFAULT 0,
+					started_at TIMESTAMP WITH TIME ZONE,
 					created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
 					CONSTRAINT chk_call_logs_type CHECK (call_type IN ('audio', 'video')),
 					CONSTRAINT chk_call_logs_status CHECK (status IN ('missed', 'completed', 'rejected'))
+				);
+			`,
+		},
+		{
+			tableName: "notifications",
+			query: `
+				CREATE TABLE IF NOT EXISTS notifications (
+					id SERIAL PRIMARY KEY,
+					user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+					sender_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+					type TEXT NOT NULL,
+					title TEXT NOT NULL,
+					body TEXT NOT NULL,
+					is_read BOOLEAN NOT NULL DEFAULT FALSE,
+					created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+					CONSTRAINT chk_notifications_type CHECK (type IN ('message', 'live_location', 'call'))
 				);
 			`,
 		},
@@ -137,10 +155,32 @@ func RunMigrations(pool *pgxpool.Pool) error {
 			return fmt.Errorf("migration failed for table %s (step %d): %w", step.tableName, index+1, err)
 		}
 		// Print per-step migration progress
-		log.Printf("Migration step %d/6 applied: [%s] table ready", index+1, step.tableName)
+		log.Printf("Migration step %d/%d applied: [%s] table ready", index+1, len(migrations), step.tableName)
+	}
+
+	// Ensure call_logs has started_at column for existing databases
+	if _, err := pool.Exec(ctx, `ALTER TABLE call_logs ADD COLUMN IF NOT EXISTS started_at TIMESTAMP WITH TIME ZONE;`); err != nil {
+		log.Printf("Note: adding started_at to call_logs: %v", err)
+	}
+
+	// Ensure notifications table constraint includes 'call' for existing databases
+	updateConstraintSQL := `
+		DO $$
+		BEGIN
+			IF EXISTS (
+				SELECT 1 FROM information_schema.table_constraints 
+				WHERE constraint_name = 'chk_notifications_type' AND table_name = 'notifications'
+			) THEN
+				ALTER TABLE notifications DROP CONSTRAINT chk_notifications_type;
+			END IF;
+			ALTER TABLE notifications ADD CONSTRAINT chk_notifications_type CHECK (type IN ('message', 'live_location', 'call'));
+		END $$;
+	`
+	if _, err := pool.Exec(ctx, updateConstraintSQL); err != nil {
+		log.Printf("Note: updating chk_notifications_type constraint: %v", err)
 	}
 
 	// Print final success result log
-	log.Println("Database migration completed successfully! All 6 tables are verified and up to date.")
+	log.Printf("Database migration completed successfully! All %d tables are verified and up to date.", len(migrations))
 	return nil
 }
